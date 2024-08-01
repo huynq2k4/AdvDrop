@@ -379,7 +379,7 @@ if __name__ == '__main__':
         #     model.train()
         
     _, item_embeddings = model.compute()
-    torch.save(item_embeddings, f'Data/{args.dataset}/item_cf_feature.pt')
+    torch.save(item_embeddings, f'data/{args.dataset}/item_cf_feature.pt')
     # Get result
     # model = restore_best_checkpoint(data.best_valid_epoch, model, base_path, device)
 
