@@ -3,7 +3,7 @@ import os
 import torch
 import numpy as np
 import re
-
+from evaluator import ProxyEvaluator
 
 def merge_user_list(user_lists):
     out = collections.defaultdict(list)
