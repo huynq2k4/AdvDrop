@@ -1,7 +1,6 @@
 *.npy
 *.yml
 *.pyc
-*.txt
 *.o
 *.npz
 *.tar
