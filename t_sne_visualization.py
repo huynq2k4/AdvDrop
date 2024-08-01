@@ -1,6 +1,6 @@
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
-from model import CausE, IPS, LGN, MACR, INFONCE_batch, INFONCE, SAMREG, BC_LOSS, BC_LOSS_batch, SimpleX, SimpleX_batch, INV_LGN_DUAL, CVIB, CVIB_SEQ, DR, LGN_BCE, DR_SEQ
+from model import CausE, IPS, LGN, MACR, INFONCE_batch, INFONCE, SAMREG, BC_LOSS, BC_LOSS_batch, SimpleX, SimpleX_batch, CVIB, CVIB_SEQ, DR, LGN_BCE, DR_SEQ
 from torch.utils.tensorboard import SummaryWriter
 from parse import parse_args
 from data import Data
