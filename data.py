@@ -221,6 +221,8 @@ class Data:
             item_idx[item] = i
         self.user_pop_idx = np.zeros(self.n_users, dtype=int)
         self.item_pop_idx = np.zeros(self.n_items, dtype=int)
+        print("Pop_user:", pop_user)
+        print("Pop_item:", pop_item)
         for key, value in pop_user.items():
             self.user_pop_idx[key] = user_idx[value]
         for key, value in pop_item.items():
