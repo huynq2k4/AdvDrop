@@ -173,7 +173,7 @@ class Data:
             self.users=list(set(self.users).union(set(self.test_neg_user_list.keys())))
         self.n_users = len(self.users)
         self.n_items = len(self.items)
-        with open(f'{self.dataset}/count.json', 'r') as file:
+        with open(f'data/{self.dataset}/count.json', 'r') as file:
             data = json.load(file)
             self.n_users = data['#U']
             self.n_items = data['#I']
