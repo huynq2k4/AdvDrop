@@ -32,7 +32,7 @@ def helper_load(filename):
                 continue
             line = [int(i) for i in line]
             user = line[0]
-            items = line[1:]
+            items = list(set(line[1:]))
             item_dict.update(items)
             if len(items) == 0:
                 continue
@@ -56,7 +56,7 @@ def helper_load_train(filename):
                 continue
             line = [int(i) for i in line]
             user = line[0]
-            items = line[1:]
+            items = list(set(line[1:]))
             item_dict.update(items)
             # LGN
             trainUser.extend([user] * len(items))
