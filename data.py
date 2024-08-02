@@ -15,6 +15,7 @@ import pandas as pd
 from torch.utils.data import Dataset, DataLoader
 from util.tool import randint_choice
 import operator
+import json
 
 
 # Helper function used when loading data from files
@@ -162,10 +163,8 @@ class Data:
 
         self.pop_dict_list = []
 
-        temp_lst = [train_item, valid_item, self.test_ood_item_list, self.test_id_item_list]
-
         self.users = list(set(self.train_user_list.keys()))
-        self.items = list(set().union(*temp_lst))
+        self.items = list(set(train_item))
         if 'coat' in self.dataset or 'yahoo' in self.dataset:
             self.items=list(set(self.items).union(*[train_neg_item,test_neg_item]))
             self.users=list(set(self.users).union(set(self.train_neg_user_list.keys())))
@@ -174,6 +173,12 @@ class Data:
             self.users=list(set(self.users).union(set(self.test_neg_user_list.keys())))
         self.n_users = len(self.users)
         self.n_items = len(self.items)
+        with open(f'{self.dataset}/count.json', 'r') as file:
+            data = json.load(file)
+            self.n_users = data['#U']
+            self.n_items = data['#I']
+        print(self.n_users)
+        print(self.n_items)
 
         for i in range(self.n_users):
             if i in self.train_user_list:
@@ -221,8 +226,8 @@ class Data:
             item_idx[item] = i
         self.user_pop_idx = np.zeros(self.n_users, dtype=int)
         self.item_pop_idx = np.zeros(self.n_items, dtype=int)
-        print("Pop_user:", pop_user)
-        print("Pop_item:", pop_item)
+        # print("Pop_user:", pop_user)
+        # print("Pop_item:", pop_item)
         for key, value in pop_user.items():
             self.user_pop_idx[key] = user_idx[value]
         for key, value in pop_item.items():
