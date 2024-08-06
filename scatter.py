@@ -2,8 +2,6 @@ from typing import Optional, Tuple
 
 import torch
 
-from .torch_scatter.utils import broadcast
-
 
 def broadcast(src: torch.Tensor, other: torch.Tensor, dim: int):
     if dim < 0:
