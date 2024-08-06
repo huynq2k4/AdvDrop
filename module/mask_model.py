@@ -137,7 +137,7 @@ class Mask_Model_Attention(MessagePassing):
         size = self._check_input(edge_index, size)
 
         if decomposed_layers > 1:
-                user_args = self.__user_args__
+                user_args = self._user_args
                 decomp_args = {a[:-2] for a in user_args if a[-2:] == '_j'}
                 decomp_kwargs = {
                     a: kwargs[a].chunk(decomposed_layers, -1)
@@ -150,7 +150,7 @@ class Mask_Model_Attention(MessagePassing):
                 for arg in decomp_args:
                     kwargs[arg] = decomp_kwargs[arg][i]
 
-            coll_dict = self.__collect__(self.__user_args__, edge_index,
+            coll_dict = self._collect(self._user_args, edge_index,
                                             size, kwargs)
 
             msg_kwargs = self.inspector.distribute('message', coll_dict)
