@@ -78,10 +78,6 @@ if __name__ == '__main__':
         grp_view.append(pop_sorted[split])
     print("group_view:", grp_view)
     user_pop_grp_idx = np.searchsorted(grp_view, p_user)
-    
-
-    # eval_test_ood_split = split_grp_view(grp_view, data.test_ood_user_list, idx)
-    # eval_test_id_split = split_grp_view(grp_view, data.test_id_user_list, idx)
 
     grp_view = [0] + grp_view
 
@@ -94,7 +90,6 @@ if __name__ == '__main__':
 
     sort_pop = sorted(pop_dict.items(), key=lambda item: item[1], reverse=True)
     pop_mask = [item[0] for item in sort_pop[:20]]
-    #print(pop_mask)
     if "douban" in args.dataset:
         top_ks=[30,20,20]
     elif "yelp" in args.dataset:
@@ -102,26 +97,6 @@ if __name__ == '__main__':
     else:
         top_ks=[5,3,3]
     print("top Ks : ", top_ks)
-
-    # if not args.pop_test:
-    #     eval_test_ood = ProxyEvaluator(data,data.train_user_list,data.test_ood_user_list,top_k=[top_ks[0]],dump_dict=merge_user_list([data.train_user_list,data.valid_user_list,data.test_id_user_list]),user_neg_test=data.test_neg_user_list)
-    #     eval_test_id = ProxyEvaluator(data,data.train_user_list,data.test_id_user_list,top_k=[top_ks[1]],dump_dict=merge_user_list([data.train_user_list,data.valid_user_list,data.test_ood_user_list]),user_neg_test=data.test_neg_user_list)
-    #     eval_valid = ProxyEvaluator(data,data.train_user_list,data.valid_user_list,top_k=[top_ks[2]],user_neg_test=data.test_neg_user_list)
-    #     if 'coat' in args.dataset or 'yahoo' in args.dataset:
-    #         eval_valid=ProxyEvaluator(data,data.train_user_list,data.test_id_user_list,top_k=[3],dump_dict=merge_user_list([data.train_user_list,data.valid_user_list,data.test_ood_user_list]),user_neg_test=data.test_neg_user_list)
-    # else:
-    #     eval_test_ood = ProxyEvaluator(data, data.train_user_list, data.test_ood_user_list, top_k=[20],
-    #                                    dump_dict=merge_user_list(
-    #                                        [data.train_user_list, data.valid_user_list, data.test_id_user_list]),
-    #                                    pop_mask=pop_mask)
-    #     eval_test_id = ProxyEvaluator(data, data.train_user_list, data.test_id_user_list, top_k=[20],
-    #                                   dump_dict=merge_user_list(
-    #                                       [data.train_user_list, data.valid_user_list, data.test_ood_user_list]),
-    #                                   pop_mask=pop_mask)
-    #     eval_valid = ProxyEvaluator(data, data.train_user_list, data.valid_user_list, top_k=[20], pop_mask=pop_mask)
-
-    # evaluators = [eval_valid, eval_test_id, eval_test_ood]
-    # eval_names = ["valid", "test_id", "test_ood"]
 
     if args.modeltype == 'AdvDrop':
         model = ADV_DROP(args, data,writer)
@@ -133,12 +108,6 @@ if __name__ == '__main__':
     model.item_tags.append(torch.from_numpy(item_pop_grp_idx))
     model.user_tags.append(torch.from_numpy(user_pop_grp_idx))
 
-    # if args.test_only:
-
-    #     for i, evaluator in enumerate(evaluators):
-    #         is_best, temp_flag = evaluation(args, data, model, start_epoch, base_path, evaluator, eval_names[i])
-
-    #     exit()
 
     flag = False
 
@@ -149,6 +118,7 @@ if __name__ == '__main__':
     mask_optimizer = torch.optim.Adam([param for param in model.parameters() if param.requires_grad == True], lr=args.adv_lr)
 
     for epoch in range(start_epoch, args.epoch):
+        print(f"Epoch {epoch + 1}/{args.epoch}:")
         # If the early stopping has been reached, restore to the best performance model
         # if flag:
         #     break
@@ -165,8 +135,6 @@ if __name__ == '__main__':
             cur_adv_patience=0
 
             epoch_adv = 0 
-            #model.M.reset_parameters()
-            #while cur_adv_patience < args.adv_patience:
             if args.draw_t_sne:
                     visualiza_embed(model, image_path, epoch, 0)
 
@@ -174,9 +142,7 @@ if __name__ == '__main__':
 
                 t1 = time.time()
                 pbar = tqdm(enumerate(data.train_loader), total=len(data.train_loader))
-                #print("embed_user grad before", model.embed_user.weight.requires_grad)
                 model.freeze_args(True)
-                #print("embed_user grad after", model.embed_user.weight.requires_grad)
 
                 # adaptive mask step
 
@@ -345,37 +311,6 @@ if __name__ == '__main__':
         with open(base_path + 'stats_{}.txt'.format(args.saveID), 'a') as f:
             f.write(perf_str + "\n")
 
-        # # Evaluate the trained model
-        # if (epoch + 1) % args.verbose == 0:
-        #     model.eval()
-        #     for i, evaluator in enumerate(evaluators):
-        #         is_best, temp_flag = evaluation(args, data, model, epoch, base_path, evaluator, eval_names[i])
-
-        #         if is_best:
-        #             checkpoint_buffer = save_checkpoint(model, epoch, base_path, checkpoint_buffer, args.max2keep)
-
-        #         if temp_flag:
-        #             flag = True
-            
-        #     if args.modeltype == "AdvDrop":
-        #         predict_bias=model.get_predict_bias()
-        #         perf_str = f"current predict bias:{predict_bias} \n"
-        #         print(perf_str)
-        #         with open(base_path + 'stats_{}.txt'.format(args.saveID), 'a') as f:
-        #             f.write(perf_str + "\n")
-
-        #     model.train()
         
     _, item_embeddings = model.compute()
     torch.save(item_embeddings, f'data/{args.dataset}/item_cf_feature.pt')
-    # Get result
-    # model = restore_best_checkpoint(data.best_valid_epoch, model, base_path, device)
-
-    # print_str = "The best epoch is % d" % data.best_valid_epoch
-    # with open(base_path + 'stats_{}.txt'.format(args.saveID), 'a') as f:
-    #     f.write(print_str + "\n")
-
-    # for i, evaluator in enumerate(evaluators[:]):
-    #     evaluation(args, data, model, epoch, base_path, evaluator, eval_names[i])
-    # with open(base_path + 'stats_{}.txt'.format(args.saveID), 'a') as f:
-    #     f.write(print_str + "\n")

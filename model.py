@@ -285,7 +285,7 @@ class ADV_DROP(MF):
 
             users_emb = all_users[users]
             pos_emb = all_items[pos_items]
-            neg_emb = all_items[neg_items]
+            neg_emb = all_items[neg_items].squeeze()
 
             pos_scores = torch.sum(torch.mul(users_emb, pos_emb), dim=1)  # users, pos_items, neg_items have the same shape
             neg_scores = torch.sum(torch.mul(users_emb, neg_emb), dim=1)

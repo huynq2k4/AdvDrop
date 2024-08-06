@@ -3,7 +3,6 @@ import os
 import torch
 import numpy as np
 import re
-from evaluator import ProxyEvaluator
 
 def merge_user_list(user_lists):
     out = collections.defaultdict(list)
@@ -146,78 +145,10 @@ def clear_checkpoint(checkpoint_dir):
     print("Checkpoint successfully removed")
 
 
-def evaluation(args, data, model, epoch, base_path, evaluator, name="valid"):
-    # Evaluate with given evaluator
-
-    ret, _ = evaluator.evaluate(model)
-
-    n_ret = {"recall": ret[1], "hit_ratio": ret[5], "precision": ret[0], "ndcg": ret[3], "mrr":ret[4], "map":ret[2]}
-
-    perf_str = name+':{}'.format(n_ret)
-    print(perf_str)
-    with open(base_path + 'stats_{}.txt'.format(args.saveID), 'a') as f:
-        f.write(perf_str + "\n")
-    # Check if need to early stop (on validation)
-    is_best=False
-    early_stop=False
-    if name=="valid":
-        if ret[1] > data.best_valid_recall:
-            data.best_valid_epoch = epoch
-            data.best_valid_recall = ret[1]
-            data.patience = 0
-            is_best=True
-        else:
-            data.patience += 1
-            if data.patience >= args.patience:
-                print_str = "The best performance epoch is % d " % data.best_valid_epoch
-                print(print_str)
-                early_stop=True
-
-    return is_best, early_stop
-
-
-def Item_pop(args, data, model):
-
-    for K in range(5):
-
-        eval_pop = ProxyEvaluator(data, data.train_user_list, data.pop_dict_list[K], top_k=[(K+1)*10],
-                                   dump_dict=merge_user_list([data.train_user_list, data.valid_user_list]))
-
-        ret, _ = eval_pop.evaluate(model)
-
-        print_str = "Overlap for K = % d is % f" % ( (K+1)*10, ret[1] )
-
-        print(print_str)
-
-        with open('stats_{}.txt'.format(args.saveID), 'a') as f:
-            f.write(print_str + "\n")
-
-
 def ensureDir(dir_path):
 
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
-
-
-def split_grp_view(grp_view,data,grp_idx):
-    n=len(grp_view)
-    split_data=[{} for _ in range(n)]
-
-    for key,item in data.items():
-        for it in item:
-            if key not in split_data[grp_idx[it]].keys():
-                split_data[grp_idx[it]][key]=[]
-            split_data[grp_idx[it]][key].append(it)
-    return split_data
-
-
-def checktensor(tensor):
-    t=tensor.detach().cpu().numpy()
-    if np.max(np.isnan(t)):        
-        idx=np.argmax(np.isnan(t))
-        return idx
-    else:
-        return -1
 
 
 def sparse_dense_mul(s, d):
@@ -225,54 +156,3 @@ def sparse_dense_mul(s, d):
     v = s._values()
     dv = d[i[0,:], i[1,:]]  # get values from relevant entries of dense matrix
     return torch.sparse.FloatTensor(i, v * dv, s.size())
-
-def binarize(y, thres=4):
-    """Given threshold, binarize the ratings.
-    """
-    y[y< thres] = 0
-    y[y>=thres] = 1
-    return y
-
-def generate_total_sample(num_user, num_item):
-    sample = []
-    for i in range(num_user):
-        sample.extend([[i,j] for j in range(num_item)])
-    return np.array(sample)
-
-def rating_mat_to_sample(mat):
-    row, col = np.nonzero(mat)
-    y = mat[row,col]
-    x = np.concatenate([row.reshape(-1,1), col.reshape(-1,1)], axis=1)
-    return x, y
-
-def ndcg_func(model, x_te, y_te, device, top_k_list = [5, 10]):
-    """Evaluate nDCG@K of the trained model on test dataset.
-    """
-    all_user_idx = np.unique(x_te[:,0])
-    all_tr_idx = np.arange(len(x_te))
-    result_map = collections.defaultdict(list)
-
-    for uid in all_user_idx:
-        u_idx = all_tr_idx[x_te[:,0] == uid]
-        x_u = x_te[u_idx]
-        y_u = y_te[u_idx]
-        pred_u = model.new_predict(torch.LongTensor(x_u[:,0]).cuda(device), torch.LongTensor(x_u[:,1]).cuda(device))
-
-        for top_k in top_k_list:
-            pred_top_k = np.argsort(-pred_u)[:top_k]
-            count = y_u[pred_top_k].sum()
-
-            log2_iplus1 = np.log2(1+np.arange(1,top_k+1))
-
-            dcg_k = y_u[pred_top_k] / log2_iplus1
-
-            best_dcg_k = y_u[np.argsort(-y_u)][:top_k] / log2_iplus1
-
-            if np.sum(best_dcg_k) == 0:
-                ndcg_k = 1
-            else:
-                ndcg_k = np.sum(dcg_k) / np.sum(best_dcg_k)
-
-            result_map["ndcg_{}".format(top_k)].append(ndcg_k)
-
-    return result_map
