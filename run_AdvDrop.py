@@ -1,28 +1,18 @@
 import random
-import re
-from sys import get_coroutine_origin_tracking_depth
-from sys import exit
 import matplotlib.pyplot as plt
 random.seed(101)
-import math
-# from scipy.linalg import svd
-import itertools
 import torch
 import time
 import numpy as np
 from tqdm import tqdm
-from evaluator import ProxyEvaluator
-import collections
 import os
 from data import Data
 from parse import parse_args
-from model import ADV_DROP, LGN
-from torch.utils.data import Dataset, DataLoader
+from model import ADV_DROP
 from utils import *
 from torch.utils.tensorboard import SummaryWriter
 import networkx as nx
 from t_sne_visualization import * 
-from copy import deepcopy
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
 
@@ -113,30 +103,28 @@ if __name__ == '__main__':
         top_ks=[5,3,3]
     print("top Ks : ", top_ks)
 
-    if not args.pop_test:
-        eval_test_ood = ProxyEvaluator(data,data.train_user_list,data.test_ood_user_list,top_k=[top_ks[0]],dump_dict=merge_user_list([data.train_user_list,data.valid_user_list,data.test_id_user_list]),user_neg_test=data.test_neg_user_list)
-        eval_test_id = ProxyEvaluator(data,data.train_user_list,data.test_id_user_list,top_k=[top_ks[1]],dump_dict=merge_user_list([data.train_user_list,data.valid_user_list,data.test_ood_user_list]),user_neg_test=data.test_neg_user_list)
-        eval_valid = ProxyEvaluator(data,data.train_user_list,data.valid_user_list,top_k=[top_ks[2]],user_neg_test=data.test_neg_user_list)
-        if 'coat' in args.dataset or 'yahoo' in args.dataset:
-            eval_valid=ProxyEvaluator(data,data.train_user_list,data.test_id_user_list,top_k=[3],dump_dict=merge_user_list([data.train_user_list,data.valid_user_list,data.test_ood_user_list]),user_neg_test=data.test_neg_user_list)
-    else:
-        eval_test_ood = ProxyEvaluator(data, data.train_user_list, data.test_ood_user_list, top_k=[20],
-                                       dump_dict=merge_user_list(
-                                           [data.train_user_list, data.valid_user_list, data.test_id_user_list]),
-                                       pop_mask=pop_mask)
-        eval_test_id = ProxyEvaluator(data, data.train_user_list, data.test_id_user_list, top_k=[20],
-                                      dump_dict=merge_user_list(
-                                          [data.train_user_list, data.valid_user_list, data.test_ood_user_list]),
-                                      pop_mask=pop_mask)
-        eval_valid = ProxyEvaluator(data, data.train_user_list, data.valid_user_list, top_k=[20], pop_mask=pop_mask)
+    # if not args.pop_test:
+    #     eval_test_ood = ProxyEvaluator(data,data.train_user_list,data.test_ood_user_list,top_k=[top_ks[0]],dump_dict=merge_user_list([data.train_user_list,data.valid_user_list,data.test_id_user_list]),user_neg_test=data.test_neg_user_list)
+    #     eval_test_id = ProxyEvaluator(data,data.train_user_list,data.test_id_user_list,top_k=[top_ks[1]],dump_dict=merge_user_list([data.train_user_list,data.valid_user_list,data.test_ood_user_list]),user_neg_test=data.test_neg_user_list)
+    #     eval_valid = ProxyEvaluator(data,data.train_user_list,data.valid_user_list,top_k=[top_ks[2]],user_neg_test=data.test_neg_user_list)
+    #     if 'coat' in args.dataset or 'yahoo' in args.dataset:
+    #         eval_valid=ProxyEvaluator(data,data.train_user_list,data.test_id_user_list,top_k=[3],dump_dict=merge_user_list([data.train_user_list,data.valid_user_list,data.test_ood_user_list]),user_neg_test=data.test_neg_user_list)
+    # else:
+    #     eval_test_ood = ProxyEvaluator(data, data.train_user_list, data.test_ood_user_list, top_k=[20],
+    #                                    dump_dict=merge_user_list(
+    #                                        [data.train_user_list, data.valid_user_list, data.test_id_user_list]),
+    #                                    pop_mask=pop_mask)
+    #     eval_test_id = ProxyEvaluator(data, data.train_user_list, data.test_id_user_list, top_k=[20],
+    #                                   dump_dict=merge_user_list(
+    #                                       [data.train_user_list, data.valid_user_list, data.test_ood_user_list]),
+    #                                   pop_mask=pop_mask)
+    #     eval_valid = ProxyEvaluator(data, data.train_user_list, data.valid_user_list, top_k=[20], pop_mask=pop_mask)
 
-    evaluators = [eval_valid, eval_test_id, eval_test_ood]
-    eval_names = ["valid", "test_id", "test_ood"]
+    # evaluators = [eval_valid, eval_test_id, eval_test_ood]
+    # eval_names = ["valid", "test_id", "test_ood"]
 
     if args.modeltype == 'AdvDrop':
         model = ADV_DROP(args, data,writer)
-    if args.modeltype == 'LGN':
-        model = LGN(args, data)
     #    b=args.sample_beta
     model.cuda(device)
 
@@ -145,12 +133,12 @@ if __name__ == '__main__':
     model.item_tags.append(torch.from_numpy(item_pop_grp_idx))
     model.user_tags.append(torch.from_numpy(user_pop_grp_idx))
 
-    if args.test_only:
+    # if args.test_only:
 
-        for i, evaluator in enumerate(evaluators):
-            is_best, temp_flag = evaluation(args, data, model, start_epoch, base_path, evaluator, eval_names[i])
+    #     for i, evaluator in enumerate(evaluators):
+    #         is_best, temp_flag = evaluation(args, data, model, start_epoch, base_path, evaluator, eval_names[i])
 
-        exit()
+    #     exit()
 
     flag = False
 

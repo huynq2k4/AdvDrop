@@ -5,9 +5,7 @@ from typing import Optional, Tuple, Union
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-from torch_sparse import SparseTensor, matmul, set_diag
 from torch_geometric.nn.conv import MessagePassing
-from torch_scatter import scatter
 from torch_geometric.nn.dense.linear import Linear
 from torch_geometric.typing import NoneType  # noqa
 from torch_geometric.typing import Adj, OptPairTensor, OptTensor, Size
@@ -17,106 +15,104 @@ from torch_geometric.utils import add_self_loops, degree
 from torch_geometric.nn.conv.gcn_conv import gcn_norm
 from torch_geometric.utils import is_sparse, is_torch_sparse_tensor
 
+from typing import Optional, Tuple
 
-class Mask_Model(nn.Module):
-    def __init__(self, args, u_i_matrix, graph):
-        super().__init__()
-        # TODO: Modify M with Attention
-        self.inv_loss = Inv_Loss(args)
-        self.embed_size = args.embed_size
-        self.embed_h = args.att_dim
-        self.device = torch.device(args.cuda)
-        self.graph = graph
-        if args.mask == 1:
-            self.gumble_tau = args.gumble_tau
-            self.Q = nn.Linear(self.embed_size, self.embed_h)
-            self.K = nn.Linear(self.embed_size, self.embed_h)
-        if args.mask == 0:
-            self.rand_var = torch.nn.Parameter(torch.ones_like(graph._values())).to(self.device)
-        self.u_i_matrix = u_i_matrix
-        # self.V = nn.Linear(embed_h, embed_h)
+import torch
 
-    def get_M_attention(self, u_i_matrix, user_embed, item_embed):
-        Q = self.Q(user_embed)  # No.user x embedding
-        K = self.K(item_embed)  # No.item x embedding
-        weights = torch.matmul(Q, K.T)  # No.user x No.item
-        gumble_G = torch.log(-torch.log(torch.rand(u_i_matrix._values().shape[0]).to(self.device)))
-        gumble_G = torch.sparse_coo_tensor(u_i_matrix._indices(), gumble_G, u_i_matrix.size())
-        # apply mask
-        mask_weights = sparse_dense_mul(u_i_matrix, weights)
-        g_mask_weights = (mask_weights - gumble_G) / self.gumble_tau
-        weights_softmax = torch.sparse.softmax(g_mask_weights, dim=1)
-        # weights_softmax = weights_exp / (torch.sparse.sum(weights_exp, dim=1) + 1e-5) #No. user * No.items
-        return weights_softmax
-
-    def mask_attention(self, user_embed, item_embed):
-        user_num = user_embed.shape[0]
-        item_num = item_embed.shape[0]
-        user_pad = torch.sparse.FloatTensor(torch.Size([user_num, user_num])).to(self.device)
-        item_pad = torch.sparse.FloatTensor(torch.Size([item_num, item_num])).to(self.device)
-        # user as the query 
-        M_ui = self.get_M_attention(self.u_i_matrix, user_embed, item_embed)
-        M_ui = torch.cat([user_pad, M_ui], dim=1).coalesce()
-        # item as the query 
-        M_iu = self.get_M_attention(torch.transpose(self.u_i_matrix, 0, 1), item_embed, user_embed)
-        M_iu = torch.cat([M_iu, item_pad], dim=1).coalesce()
-
-        mask = torch.cat([M_ui, M_iu], dim=0).coalesce()
-        mask = torch.sparse_coo_tensor(mask._indices(), torch.cat([M_ui.values(), M_iu.values()]), mask.size())
-        return mask
-
-    def mask_simple(self, user_embed, item_embed):
-        # user_num = user_embed.shape[0]
-        # item_num = item_embed.shape[0]
-        # user_pad = torch.sparse.FloatTensor(torch.Size([user_num, user_num])).to(self.device)
-        # item_pad = torch.sparse.FloatTensor(torch.Size([item_num, item_num])).to(self.device)
-
-        # M_ui = torch.cat([user_pad, self.rand_var_sparse], dim=1)
-        # M_iu = torch.cat([torch.transpose(self.rand_var_sparse, 0, 1), item_pad], dim=1)
-
-        # mask = torch.cat([M_ui, M_iu], dim=0)
-        mask = torch.sparse_coo_tensor(self.graph._indices(), self.rand_var, self.graph.size())
-        # print("sparse var grad:",self.rand_var_sparse.requires_grad)
-        # print("var grad:",self.rand_var.requires_grad)
-
-        return mask
+def broadcast(src: torch.Tensor, other: torch.Tensor, dim: int):
+    if dim < 0:
+        dim = other.dim() + dim
+    if src.dim() == 1:
+        for _ in range(0, dim):
+            src = src.unsqueeze(0)
+    for _ in range(src.dim(), other.dim()):
+        src = src.unsqueeze(-1)
+    src = src.expand(other.size())
+    return src
 
 
-class Mask_Model_Geometric(MessagePassing):
-    def __init__(self, args):
-        super().__init__(aggr='add')
-        self.embed_size = args.embed_size
-        self.embed_h = args.att_dim
-        self.Q = Linear(self.embed_size, self.embed_h)
-        self.K = Linear(self.embed_size, self.embed_h)
-        self.gumble_tau = args.gumble_tau
-        self.device = torch.device(args.cuda)
+def scatter_sum(src: torch.Tensor, index: torch.Tensor, dim: int = -1,
+                out: Optional[torch.Tensor] = None,
+                dim_size: Optional[int] = None) -> torch.Tensor:
+    index = broadcast(index, src, dim)
+    if out is None:
+        size = list(src.size())
+        if dim_size is not None:
+            size[dim] = dim_size
+        elif index.numel() == 0:
+            size[dim] = 0
+        else:
+            size[dim] = int(index.max()) + 1
+        out = torch.zeros(size, dtype=src.dtype, device=src.device)
+        return out.scatter_add_(dim, index, src)
+    else:
+        return out.scatter_add_(dim, index, src)
 
-    def forward(self, x: Tensor, edge_index: Adj) -> Tensor:
-        row, col = edge_index
-        deg = degree(col, x.size(0), dtype=x.dtype)
-        deg_inv_sqrt = deg.pow(-0.5)
-        deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
-        norm = deg_inv_sqrt[row] * deg_inv_sqrt[col]
-        x_norm = F.normalize(x, p=2., dim=-1)
-        # propagate_type: (x: Tensor, x_norm: Tensor)
-        return self.propagate(edge_index, x=x, x_norm = x_norm, norm = norm, size=None)
 
-    def message(self, x_j: Tensor, x_norm_i: Tensor, x_norm_j: Tensor, norm,
-                index: Tensor, ptr: OptTensor,
-                size_i: Optional[int]) -> Tensor:
-        # apply transformation layers
-        Query = self.Q(x_norm_i)
-        Keys = self.K(x_norm_j)
-        # dot product of each query-key pair
-        alpha = (Keys * Query).sum(dim=-1)
-        # apply gumble
-        gumble_G = torch.log(-torch.log(torch.rand(alpha.shape[0]).to(self.device)))
-        alpha = (alpha - gumble_G) / self.gumble_tau
-        # softmax
-        alpha = softmax(alpha, index, ptr, size_i)
+def scatter_add(src: torch.Tensor, index: torch.Tensor, dim: int = -1,
+                out: Optional[torch.Tensor] = None,
+                dim_size: Optional[int] = None) -> torch.Tensor:
+    return scatter_sum(src, index, dim, out, dim_size)
 
-        return x_j * alpha.view(-1, 1) * norm.view(-1, 1)
+
+def scatter_mul(src: torch.Tensor, index: torch.Tensor, dim: int = -1,
+                out: Optional[torch.Tensor] = None,
+                dim_size: Optional[int] = None) -> torch.Tensor:
+    return torch.ops.torch_scatter.scatter_mul(src, index, dim, out, dim_size)
+
+
+def scatter_mean(src: torch.Tensor, index: torch.Tensor, dim: int = -1,
+                 out: Optional[torch.Tensor] = None,
+                 dim_size: Optional[int] = None) -> torch.Tensor:
+    out = scatter_sum(src, index, dim, out, dim_size)
+    dim_size = out.size(dim)
+
+    index_dim = dim
+    if index_dim < 0:
+        index_dim = index_dim + src.dim()
+    if index.dim() <= index_dim:
+        index_dim = index.dim() - 1
+
+    ones = torch.ones(index.size(), dtype=src.dtype, device=src.device)
+    count = scatter_sum(ones, index, index_dim, None, dim_size)
+    count[count < 1] = 1
+    count = broadcast(count, out, dim)
+    if out.is_floating_point():
+        out.true_divide_(count)
+    else:
+        out.div_(count, rounding_mode='floor')
+    return out
+
+
+def scatter_min(
+        src: torch.Tensor, index: torch.Tensor, dim: int = -1,
+        out: Optional[torch.Tensor] = None,
+        dim_size: Optional[int] = None) -> Tuple[torch.Tensor, torch.Tensor]:
+    return torch.ops.torch_scatter.scatter_min(src, index, dim, out, dim_size)
+
+
+def scatter_max(
+        src: torch.Tensor, index: torch.Tensor, dim: int = -1,
+        out: Optional[torch.Tensor] = None,
+        dim_size: Optional[int] = None) -> Tuple[torch.Tensor, torch.Tensor]:
+    return torch.ops.torch_scatter.scatter_max(src, index, dim, out, dim_size)
+
+
+def scatter(src: torch.Tensor, index: torch.Tensor, dim: int = -1,
+            out: Optional[torch.Tensor] = None, dim_size: Optional[int] = None,
+            reduce: str = "sum") -> torch.Tensor:
+    if reduce == 'sum' or reduce == 'add':
+        return scatter_sum(src, index, dim, out, dim_size)
+    if reduce == 'mul':
+        return scatter_mul(src, index, dim, out, dim_size)
+    elif reduce == 'mean':
+        return scatter_mean(src, index, dim, out, dim_size)
+    elif reduce == 'min':
+        return scatter_min(src, index, dim, out, dim_size)[0]
+    elif reduce == 'max':
+        return scatter_max(src, index, dim, out, dim_size)[0]
+    else:
+        raise ValueError
 
 class Mask_Model_Attention(MessagePassing):
     def __init__(self, args):
@@ -213,28 +209,3 @@ class Mask_Model_Attention(MessagePassing):
     def reset_parameters(self):
         self.Q.reset_parameters()
         self.K.reset_parameters()
-
-
-
-class GCN(MessagePassing):
-    def __init__(self, args):
-        super().__init__()
-        self.n_layers = args.n_layers
-
-    def forward(self, emd: Tensor, edge_index: Adj) -> Tensor:
-        all_emd = [emd]
-        for i in range(self.n_layers):
-            emd = self.propagate(edge_index, x=emd)
-            all_emd.append(emd)
-
-        all_emd = torch.stack(all_emd, dim=1)
-        emb_final = torch.mean(all_emd, dim=1)
-        
-        return emb_final
-
-    def message(self, x_j: Tensor, norm) -> Tensor:
-        # Constructs messages from node :math:`j` to node :math:`i`
-        return x_j
-    def message_and_aggregate(self, adj_t: SparseTensor, x: Tensor) -> Tensor:
-        # computes \tilde{A} @ x
-        return matmul(adj_t, x)

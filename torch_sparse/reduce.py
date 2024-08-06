@@ -1,7 +1,8 @@
 from typing import Optional
 
 import torch
-from torch_scatter import scatter, segment_csr
+from . import scatter
+from torch_scatter import segment_csr
 from torch_sparse.tensor import SparseTensor
 
 

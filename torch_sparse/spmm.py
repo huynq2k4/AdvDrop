@@ -1,5 +1,5 @@
 from torch import Tensor
-from torch_scatter.scatter import scatter_add
+from scatter import scatter_add
 
 
 def spmm(index: Tensor, value: Tensor, m: int, n: int,

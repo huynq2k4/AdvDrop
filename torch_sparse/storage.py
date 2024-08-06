@@ -3,7 +3,7 @@ from typing import List, Optional, Tuple
 
 import torch
 from torch_scatter import segment_csr
-from torch_scatter.scatter import scatter_add
+from scatter import scatter_add
 
 from torch_sparse.utils import Final, index_sort
 
