@@ -134,7 +134,7 @@ class Mask_Model_Attention(MessagePassing):
             if res is not None:
                 edge_index, size, kwargs = res
 
-        size = self.__check_input__(edge_index, size)
+        size = self.__check_input(edge_index, size)
 
         if decomposed_layers > 1:
                 user_args = self.__user_args__
