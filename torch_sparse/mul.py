@@ -2,7 +2,7 @@ from typing import Optional
 
 import torch
 from torch import Tensor
-from torch_scatter import gather_csr
+from torch_scatter.segment_csr import gather_csr
 
 from torch_sparse.tensor import SparseTensor
 
