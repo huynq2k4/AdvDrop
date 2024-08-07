@@ -201,7 +201,7 @@ if __name__ == '__main__':
                     # avg_inv_loss_adp += inv_loss.detach().item()
                     avg_inv_loss_adp += 0
                     num_batches_adp += 1
-                    pbar.set_description(f"Epoch_adv {epoch_adv}/{args.adv_epochs}:")
+                    pbar.set_description(f"Epoch_adv {epoch_adv + 1}/{args.adv_epochs}:")
 
                 t2 = time.time()
                 perf_str = 'Adv Epoch %d [%.1fs]: adjust avg inv == %.5f' % (
