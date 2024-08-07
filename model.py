@@ -127,8 +127,14 @@ class ADV_DROP(MF):
         # get edge_user_index 
         edge_user_index = torch.where(self.edge_index[0,:] < self.n_users, self.edge_index[0,:], self.edge_index[1,:])
         edge_item_index = torch.where(self.edge_index[0,:] < self.n_users, self.edge_index[1,:]-self.n_users, self.edge_index[0,:]-self.n_users)
-        edge_attribute = self.user_tags[index][edge_user_index].to(torch.int64).to(self.device) if view=='user' else self.item_tags[index][edge_item_index].to(torch.int64).to(self.device)
-        # print(edge_attribute_user.shape,  mask.shape)
+        device = self.user_tags[index].device if view == 'user' else self.item_tags[index].device
+
+        if view == 'user':
+            edge_user_index = edge_user_index.to(device)
+            edge_attribute = self.user_tags[index][edge_user_index].to(torch.int64).to(self.device)
+        else:
+            edge_item_index = edge_item_index.to(device)
+            edge_attribute = self.item_tags[index][edge_item_index].to(torch.int64).to(self.device)
         kk = scatter(mask, edge_attribute, dim=0, reduce="mean")
         return gini_index(kk, self.device), kk
     
@@ -136,8 +142,14 @@ class ADV_DROP(MF):
         # get edge_user_index 
         edge_user_index = torch.where(self.edge_index[0,:] < self.n_users, self.edge_index[0,:], self.edge_index[1,:])
         edge_item_index = torch.where(self.edge_index[0,:] < self.n_users, self.edge_index[1,:]-self.n_users, self.edge_index[0,:]-self.n_users)
-        edge_attribute = self.user_tags[index][edge_user_index].to(torch.int64).to(self.device) if view=='user' else self.item_tags[index][edge_item_index].to(torch.int64).to(self.device)
-        # print(edge_attribute_user.shape,  mask.shape)
+        device = self.user_tags[index].device if view == 'user' else self.item_tags[index].device
+
+        if view == 'user':
+            edge_user_index = edge_user_index.to(device)
+            edge_attribute = self.user_tags[index][edge_user_index].to(torch.int64).to(self.device)
+        else:
+            edge_item_index = edge_item_index.to(device)
+            edge_attribute = self.item_tags[index][edge_item_index].to(torch.int64).to(self.device)
         kk = scatter(mask, edge_attribute, dim=0, reduce="mean")
         kk = kk.reshape((1,-1))
         loss = torch.mean(torch.pow((kk - kk.T)**2 + 1e-10, 1/2))
